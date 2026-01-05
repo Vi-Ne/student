@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        .actions { display: flex; gap: 10px; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Student Management System</h1>
+    
+    <div class="container">
+        <h2>Add New Student</h2>
+        <form id="studentForm">
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label for="age">Age:</label>
+                <input type="number" id="age" min="1" max="100" required>
+            </div>
+            <div class="form-group">
+                <label for="course">Course:</label>
+                <input type="text" id="course" required>
+            </div>
+            <button type="submit">Add Student</button>
+            <button type="button" onclick="clearForm()">Clear</button>
+        </form>
+    </div>
+
+    <div id="message"></div>
+
+    <div class="container">
+        <h2>Students List</h2>
+        <button onclick="loadStudents()">Refresh</button>
+        <table id="studentsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Age</th>
+                    <th>Course</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="studentsBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let editingId = null;
+
+        document.addEventListener('DOMContentLoaded', loadStudents);
+
+        document.getElementById('studentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                age: parseInt(document.getElementById('age').value),
+                course: document.getElementById('course').value
+            };
+
+            try {
+                const url = editingId ? `/students/${editingId}` : '/students';
+                const method = editingId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`Student ${editingId ? 'updated' : 'added'} successfully!`, 'success');
+                    clearForm();
+                    loadStudents();
+                } else {
+                    showMessage(result.error || 'Operation failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        });
+
+        async function loadStudents() {
+            try {
+                const response = await fetch('/students');
+                const students = await response.json();
+                
+                const tbody = document.getElementById('studentsBody');
+                tbody.innerHTML = '';
+                
+                students.forEach(student => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>${student.id}</td>
+                        <td>${student.name}</td>
+                        <td>${student.email}</td>
+                        <td>${student.age}</td>
+                        <td>${student.course}</td>
+                        <td>${new Date(student.created_at).toLocaleDateString()}</td>
+                        <td class="actions">
+                            <button onclick="editStudent(${student.id})">Edit</button>
+                            <button class="btn-danger" onclick="deleteStudent(${student.id})">Delete</button>
+                        </td>
+                    `;
+                });
+            } catch (error) {
+                showMessage('Failed to load students', 'error');
+            }
+        }
+
+        async function editStudent(id) {
+            try {
+                const response = await fetch(`/students/${id}`);
+                const student = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('name').value = student.name;
+                    document.getElementById('email').value = student.email;
+                    document.getElementById('age').value = student.age;
+                    document.getElementById('course').value = student.course;
+                    editingId = id;
+                    
+                    document.querySelector('button[type="submit"]').textContent = 'Update Student';
+                }
+            } catch (error) {
+                showMessage('Failed to load student', 'error');
+            }
+        }
+
+        async function deleteStudent(id) {
+            if (!confirm('Delete this student?')) return;
+            
+            try {
+                const response = await fetch(`/students/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Student deleted!', 'success');
+                    loadStudents();
+                } else {
+                    showMessage(result.error || 'Delete failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('studentForm').reset();
+            editingId = null;
+            document.querySelector('button[type="submit"]').textContent = 'Add Student';
+            document.getElementById('message').innerHTML = '';
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="message ${type}">${text}</div>`;
+            setTimeout(() => messageDiv.innerHTML = '', 3000);
+        }
+    </script>
+</body>
+</html>
